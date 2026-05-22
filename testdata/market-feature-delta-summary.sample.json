@@ -1,0 +1,40 @@
+{
+  "schema_version": "market_feature_delta_summary_v1",
+  "feature_delta_summary_id": "summary_sample_btc_open_interest",
+  "l1_run_id": "l1_sample",
+  "detail_feature_delta_key": "market_feature_delta/run_id=l1_sample/delta.json",
+  "window_start_ms": 1778374800000,
+  "window_end_ms": 1778378400000,
+  "known_as_of_ms": 1778378400000,
+  "detail_record_count": 1,
+  "summary_row_count": 1,
+  "rows": [
+    {
+      "venue": "binance",
+      "symbol_native": "BTCUSDT",
+      "symbol_canonical": "BTC",
+      "market_type": "perp",
+      "window_start_ms": 1778374800000,
+      "window_end_ms": 1778378400000,
+      "known_as_of_ms": 1778378400000,
+      "quality_status": "complete",
+      "missing_reasons": [],
+      "metrics": [
+        {
+          "metric_name": "open_interest",
+          "value_now": 106.0,
+          "value_15m_ago": 100.0,
+          "value_1h_ago": 98.0,
+          "change_pct_15m": 6.0,
+          "change_pct_1h": 8.16,
+          "price_change_same_window": 1.2,
+          "volume_change_same_window": 3.4,
+          "oi_price_divergence": 4.8,
+          "window_start_ms": 1778374800000,
+          "window_end_ms": 1778378400000,
+          "quality_status": "complete"
+        }
+      ]
+    }
+  ]
+}

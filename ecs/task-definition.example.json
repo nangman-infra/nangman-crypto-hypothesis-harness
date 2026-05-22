@@ -1,0 +1,112 @@
+{
+  "family": "td-nangman-dev-hypothesis-harness-apn2",
+  "networkMode": "awsvpc",
+  "requiresCompatibilities": ["FARGATE"],
+  "cpu": "512",
+  "memory": "2048",
+  "runtimePlatform": {
+    "cpuArchitecture": "ARM64",
+    "operatingSystemFamily": "LINUX"
+  },
+  "executionRoleArn": "arn:aws:iam::<aws-account-id>:role/role-nangman-dev-hypothesis-harness-exec",
+  "taskRoleArn": "arn:aws:iam::<aws-account-id>:role/role-nangman-dev-hypothesis-harness-task",
+  "containerDefinitions": [
+    {
+      "name": "hypothesis-harness-app",
+      "image": "REPLACE_WITH_ECR_IMAGE_URI",
+      "essential": true,
+      "stopTimeout": 120,
+      "readonlyRootFilesystem": true,
+      "linuxParameters": {
+        "capabilities": {
+          "drop": ["ALL"]
+        }
+      },
+      "command": [
+        "--hypothesis-state-s3-bucket",
+        "nangman-crypto-dev-intel-candidate-<account-suffix>",
+        "--hypothesis-state-s3-prefix",
+        "hypothesis-state/schema=intel_candidate_hypothesis_state_v1/",
+        "--hypothesis-state-s3-region",
+        "ap-northeast-2",
+        "--hypothesis-state-s3-max-keys",
+        "1000",
+        "--market-feature-delta-summary-s3-bucket",
+        "nangman-crypto-dev-market-ingest-l1-<account-suffix>",
+        "--market-feature-delta-summary-s3-prefix",
+        "market_feature_delta_summary/",
+        "--market-feature-delta-summary-s3-region",
+        "ap-northeast-2",
+        "--market-feature-delta-summary-s3-max-keys",
+        "1000",
+        "--market-feature-delta-summary-s3-read-limit",
+        "3",
+        "--market-feature-delta-s3-bucket",
+        "nangman-crypto-dev-market-ingest-l1-<account-suffix>",
+        "--market-feature-delta-s3-prefix",
+        "market_feature_delta/",
+        "--market-feature-delta-s3-region",
+        "ap-northeast-2",
+        "--market-feature-delta-s3-max-keys",
+        "1000",
+        "--market-feature-delta-s3-read-limit",
+        "3",
+        "--promotion-gate-enabled",
+        "--promotion-gate-include-retest",
+        "--promotion-gate-min-candidate-score",
+        "60",
+        "--promotion-gate-max-candidates",
+        "10",
+        "--promotion-gate-max-market-refs",
+        "100",
+        "--promotion-gate-max-harness-result-refs",
+        "10",
+        "--promotion-gate-max-replay-runs",
+        "500",
+        "--candidate-bundle-s3-bucket",
+        "nangman-crypto-dev-intel-candidate-<account-suffix>",
+        "--candidate-bundle-s3-prefix",
+        "candidate-evidence-bundle/priority=p2/",
+        "--candidate-bundle-s3-region",
+        "ap-northeast-2",
+        "--candidate-bundle-s3-max-keys",
+        "1000",
+        "--candidate-bundle-s3-read-limit",
+        "50",
+        "--historical-replay-run-index-s3-bucket",
+        "nangman-crypto-dev-research-<account-suffix>",
+        "--historical-replay-run-index-s3-prefix",
+        "replay-run-index/",
+        "--historical-replay-run-index-s3-region",
+        "ap-northeast-2",
+        "--historical-replay-run-index-s3-max-keys",
+        "1000",
+        "--historical-replay-run-index-s3-read-limit",
+        "20",
+        "--output-s3-bucket",
+        "nangman-crypto-dev-research-<account-suffix>",
+        "--output-s3-prefix",
+        "hypothesis-harness/",
+        "--output-s3-region",
+        "ap-northeast-2",
+        "--research-manifest-s3-bucket",
+        "nangman-crypto-dev-research-<account-suffix>",
+        "--research-manifest-s3-prefix",
+        "research-input-manifest/",
+        "--research-manifest-s3-region",
+        "ap-northeast-2"
+      ],
+      "environment": [
+        { "name": "AWS_REGION", "value": "ap-northeast-2" }
+      ],
+      "logConfiguration": {
+        "logDriver": "awslogs",
+        "options": {
+          "awslogs-group": "/aws/ecs/log-nangman-dev-hypothesis-harness-apn2",
+          "awslogs-region": "ap-northeast-2",
+          "awslogs-stream-prefix": "ecs"
+        }
+      }
+    }
+  ]
+}
