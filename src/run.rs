@@ -6,7 +6,8 @@ use crate::io::{
 };
 use crate::matching::{matching_deltas, max_abs_change};
 use crate::model::{
-    HARNESS_RESULT_SCHEMA_VERSION, HarnessResult, MarketArtifactInputs, PRODUCER_APP, RunSummary,
+    HARNESS_RESULT_SCHEMA_VERSION, HarnessResult, MarketArtifactInputs, PRODUCER_APP,
+    ResearchInputManifest, RunSummary,
 };
 use crate::output::{
     write_outputs_to_dir, write_outputs_to_s3, write_research_manifest_to_dir,
@@ -108,18 +109,14 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
         &candidate_bundles,
         &historical_replay_run_index_refs,
     ) {
-        let mut output_path = None;
-        let mut output_uri = None;
-        if let Some(output_dir) = args.research_manifest_output_dir.as_deref() {
-            let path = write_research_manifest_to_dir(output_dir, created_at_ms, &manifest)?;
-            output_files.push(path.clone());
-            output_path = Some(path);
-        }
-        if let Some(s3) = args.research_manifest_s3.as_ref() {
-            let uri = write_research_manifest_to_s3(s3, created_at_ms, &manifest).await?;
-            output_s3_uris.push(uri.clone());
-            output_uri = Some(uri);
-        }
+        let (output_path, output_uri) = write_research_manifest_outputs(
+            &args,
+            created_at_ms,
+            &manifest,
+            &mut output_files,
+            &mut output_s3_uris,
+        )
+        .await?;
         if output_path.is_some() || output_uri.is_some() {
             research_manifests_created = 1;
             log_event(
@@ -158,6 +155,28 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
         output_files,
         output_s3_uris,
     })
+}
+
+pub(crate) async fn write_research_manifest_outputs(
+    args: &Args,
+    created_at_ms: i64,
+    manifest: &ResearchInputManifest,
+    output_files: &mut Vec<String>,
+    output_s3_uris: &mut Vec<String>,
+) -> AppResult<(Option<String>, Option<String>)> {
+    let mut output_path = None;
+    let mut output_uri = None;
+    if let Some(output_dir) = args.research_manifest_output_dir.as_deref() {
+        let path = write_research_manifest_to_dir(output_dir, created_at_ms, manifest)?;
+        output_files.push(path.clone());
+        output_path = Some(path);
+    }
+    if let Some(s3) = args.research_manifest_s3.as_ref() {
+        let uri = write_research_manifest_to_s3(s3, created_at_ms, manifest).await?;
+        output_s3_uris.push(uri.clone());
+        output_uri = Some(uri);
+    }
+    Ok((output_path, output_uri))
 }
 
 pub(crate) fn build_harness_result(
