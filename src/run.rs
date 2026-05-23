@@ -8,7 +8,10 @@ use crate::matching::{matching_deltas, max_abs_change};
 use crate::model::{
     HARNESS_RESULT_SCHEMA_VERSION, HarnessResult, MarketArtifactInputs, PRODUCER_APP, RunSummary,
 };
-use crate::output::{write_outputs_to_dir, write_outputs_to_s3, write_research_manifest_to_s3};
+use crate::output::{
+    write_outputs_to_dir, write_outputs_to_s3, write_research_manifest_to_dir,
+    write_research_manifest_to_s3,
+};
 use crate::promotion_gate::{build_research_input_manifest, eligible_candidate_lifecycle_keys};
 use crate::report::build_report;
 use crate::time::now_ms;
@@ -35,6 +38,8 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
             "s3_historical_replay_run_index_input_configured": args.historical_replay_run_index_s3.is_some(),
             "s3_historical_replay_run_index_read_limit": args.historical_replay_run_index_s3_read_limit,
             "s3_output_configured": args.output_s3.is_some(),
+            "local_research_manifest_output_configured": args.research_manifest_output_dir.is_some(),
+            "s3_research_manifest_output_configured": args.research_manifest_s3.is_some(),
             "allow_no_output": args.allow_no_output
         }),
     );
@@ -102,23 +107,35 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
         &results,
         &candidate_bundles,
         &historical_replay_run_index_refs,
-    ) && let Some(s3) = args.research_manifest_s3.as_ref()
-    {
-        let uri = write_research_manifest_to_s3(s3, created_at_ms, &manifest).await?;
-        research_manifests_created = 1;
-        output_s3_uris.push(uri.clone());
-        log_event(
-            "research_manifest_created",
-            serde_json::json!({
-                "research_packet_id": manifest.research_packet_id,
-                "candidate_bundle_ref_count": manifest.candidate_bundle_refs.len(),
-                "market_feature_delta_ref_count": manifest.market_feature_delta_refs.len(),
-                "market_regime_context_ref_count": manifest.market_regime_context_refs.len(),
-                "hypothesis_harness_result_ref_count": manifest.hypothesis_harness_result_refs.len(),
-                "historical_replay_run_index_ref_count": manifest.historical_replay_run_index_refs.len(),
-                "output_uri": uri
-            }),
-        );
+    ) {
+        let mut output_path = None;
+        let mut output_uri = None;
+        if let Some(output_dir) = args.research_manifest_output_dir.as_deref() {
+            let path = write_research_manifest_to_dir(output_dir, created_at_ms, &manifest)?;
+            output_files.push(path.clone());
+            output_path = Some(path);
+        }
+        if let Some(s3) = args.research_manifest_s3.as_ref() {
+            let uri = write_research_manifest_to_s3(s3, created_at_ms, &manifest).await?;
+            output_s3_uris.push(uri.clone());
+            output_uri = Some(uri);
+        }
+        if output_path.is_some() || output_uri.is_some() {
+            research_manifests_created = 1;
+            log_event(
+                "research_manifest_created",
+                serde_json::json!({
+                    "research_packet_id": manifest.research_packet_id,
+                    "candidate_bundle_ref_count": manifest.candidate_bundle_refs.len(),
+                    "market_feature_delta_ref_count": manifest.market_feature_delta_refs.len(),
+                    "market_regime_context_ref_count": manifest.market_regime_context_refs.len(),
+                    "hypothesis_harness_result_ref_count": manifest.hypothesis_harness_result_refs.len(),
+                    "historical_replay_run_index_ref_count": manifest.historical_replay_run_index_refs.len(),
+                    "output_path": output_path,
+                    "output_uri": output_uri
+                }),
+            );
+        }
     } else if args.promotion_gate_enabled {
         log_event(
             "research_manifest_skipped",

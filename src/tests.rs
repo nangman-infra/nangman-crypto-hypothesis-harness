@@ -1,6 +1,10 @@
 use crate::args::{Args, parse_args};
 use crate::io::{ListedPayloadObject, select_latest_payload_keys};
-use crate::model::{MarketArtifactInputs, ResearchArtifactRef};
+use crate::model::{
+    MarketArtifactInputs, RESEARCH_INPUT_MANIFEST_SCHEMA_VERSION, ResearchArtifactRef,
+    ResearchInputManifest, ResearchRuntimeBudgetPolicy,
+};
+use crate::output::write_research_manifest_to_dir;
 use crate::promotion_gate::build_research_input_manifest;
 use crate::run::build_harness_result;
 use intel_candidate_app::model::{
@@ -123,6 +127,57 @@ fn allows_no_output_only_when_explicitly_requested() {
     assert!(args.allow_no_output);
     assert!(args.output_dir.is_none());
     assert!(args.output_s3.is_none());
+}
+
+#[test]
+fn promotion_gate_accepts_local_research_manifest_output() {
+    let args = parse_args(
+        [
+            "--hypothesis-state-file",
+            "/tmp/state.json",
+            "--output-dir",
+            "/tmp/out",
+            "--promotion-gate-enabled",
+            "--candidate-bundle-s3-bucket",
+            "candidate-bucket",
+            "--candidate-bundle-s3-prefix",
+            "candidate-evidence-bundle/priority=p2/",
+            "--research-manifest-output-dir",
+            "/tmp/research-manifest",
+        ]
+        .into_iter()
+        .map(str::to_owned),
+    )
+    .unwrap();
+
+    assert_eq!(
+        args.research_manifest_output_dir.as_deref(),
+        Some(std::path::Path::new("/tmp/research-manifest"))
+    );
+    assert!(args.research_manifest_s3.is_none());
+}
+
+#[test]
+fn promotion_gate_requires_a_research_manifest_output_target() {
+    let result = parse_args(
+        [
+            "--hypothesis-state-file",
+            "/tmp/state.json",
+            "--output-dir",
+            "/tmp/out",
+            "--promotion-gate-enabled",
+            "--candidate-bundle-s3-bucket",
+            "candidate-bucket",
+            "--candidate-bundle-s3-prefix",
+            "candidate-evidence-bundle/priority=p2/",
+        ]
+        .into_iter()
+        .map(str::to_owned),
+    );
+
+    let err = result.unwrap_err().to_string();
+    assert!(err.contains("--research-manifest-output-dir"));
+    assert!(err.contains("--research-manifest-s3-bucket"));
 }
 
 fn state_with_market_baseline(
@@ -595,4 +650,46 @@ fn builds_research_manifest_for_retest_p2_bundle() {
     assert_eq!(manifest.hypothesis_harness_result_refs.len(), 1);
     assert_eq!(manifest.historical_replay_run_index_refs.len(), 1);
     assert_eq!(manifest.runtime_budget_policy.max_replay_run_count, 500);
+}
+
+#[test]
+fn writes_research_manifest_to_local_contract_path() {
+    let output_dir = std::env::temp_dir().join(format!(
+        "hypothesis-harness-local-manifest-test-{}",
+        std::process::id()
+    ));
+    if output_dir.exists() {
+        std::fs::remove_dir_all(&output_dir).unwrap();
+    }
+    let manifest = ResearchInputManifest {
+        schema_version: RESEARCH_INPUT_MANIFEST_SCHEMA_VERSION.to_owned(),
+        research_packet_id: Some("research_packet_001".to_owned()),
+        run_scope: Some("bounded_replay".to_owned()),
+        candidate_bundle_refs: vec![ResearchArtifactRef {
+            uri: "s3://candidate-bucket/candidate-evidence-bundle/part-000001.jsonl".to_owned(),
+        }],
+        market_feature_delta_refs: Vec::new(),
+        market_regime_context_refs: Vec::new(),
+        hypothesis_harness_result_refs: Vec::new(),
+        historical_replay_run_refs: Vec::new(),
+        historical_replay_run_index_refs: Vec::new(),
+        runtime_budget_policy: ResearchRuntimeBudgetPolicy {
+            max_candidate_bundle_count: 10,
+            max_market_artifact_ref_count: 100,
+            max_hypothesis_harness_result_ref_count: 10,
+            max_historical_replay_run_ref_count: 0,
+            max_replay_run_count: 500,
+        },
+    };
+
+    let path = write_research_manifest_to_dir(&output_dir, 7_200_000, &manifest).unwrap();
+
+    assert!(path.starts_with(output_dir.to_str().unwrap()));
+    assert!(path.ends_with(
+        "research-input-manifest/schema=research_input_manifest_v1/dt=1970-01-01/hour=02/run_id=research_packet_001/manifest.json"
+    ));
+    let bytes = std::fs::read(&path).unwrap();
+    let written: ResearchInputManifest = serde_json::from_slice(&bytes).unwrap();
+    assert_eq!(written, manifest);
+    std::fs::remove_dir_all(&output_dir).unwrap();
 }

@@ -20,6 +20,7 @@ pub(crate) struct Args {
     pub(crate) output_dir: Option<PathBuf>,
     pub(crate) output_s3: Option<S3OutputArgs>,
     pub(crate) allow_no_output: bool,
+    pub(crate) research_manifest_output_dir: Option<PathBuf>,
     pub(crate) research_manifest_s3: Option<S3OutputArgs>,
     pub(crate) promotion_gate_enabled: bool,
     pub(crate) promotion_gate_include_retest: bool,
@@ -72,6 +73,7 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
         output_dir: None,
         output_s3: None,
         allow_no_output: false,
+        research_manifest_output_dir: None,
         research_manifest_s3: None,
         promotion_gate_enabled: false,
         promotion_gate_include_retest: false,
@@ -342,6 +344,12 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
             "--research-manifest-s3-force-path-style" => {
                 research_manifest_s3.force_path_style = true
             }
+            "--research-manifest-output-dir" => {
+                args.research_manifest_output_dir = Some(absolute_path_arg(
+                    values.next(),
+                    "--research-manifest-output-dir requires an absolute path",
+                )?);
+            }
             "--promotion-gate-enabled" => args.promotion_gate_enabled = true,
             "--promotion-gate-include-retest" => args.promotion_gate_include_retest = true,
             "--allow-no-output" => args.allow_no_output = true,
@@ -434,9 +442,9 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                 "--candidate-bundle-s3-bucket/--candidate-bundle-s3-prefix is required when --promotion-gate-enabled is set",
             ));
         }
-        if args.research_manifest_s3.is_none() {
+        if args.research_manifest_output_dir.is_none() && args.research_manifest_s3.is_none() {
             return Err(AppError::config(
-                "--research-manifest-s3-bucket/--research-manifest-s3-prefix is required when --promotion-gate-enabled is set",
+                "--research-manifest-output-dir or --research-manifest-s3-bucket/--research-manifest-s3-prefix is required when --promotion-gate-enabled is set",
             ));
         }
     }
@@ -476,8 +484,9 @@ Usage:
     --candidate-bundle-s3-prefix candidate-evidence-bundle/priority=p2/ \
     --historical-replay-run-index-s3-bucket nangman-crypto-dev-research-<account-suffix> \
     --historical-replay-run-index-s3-prefix replay-run-index/ \
-    --research-manifest-s3-bucket nangman-crypto-dev-research-<account-suffix> \
-    --research-manifest-s3-prefix research-input-manifest/
+    [--research-manifest-output-dir /tmp/nangman-harness-research-manifest] \
+    [--research-manifest-s3-bucket nangman-crypto-dev-research-<account-suffix> \
+     --research-manifest-s3-prefix research-input-manifest/]
 
 Runs the cheapest deterministic harness over hypothesis_state records and writes
 hypothesis-harness-result plus hypothesis-harness-report. The app prefers

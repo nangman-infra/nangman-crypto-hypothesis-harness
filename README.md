@@ -81,11 +81,42 @@ fresh symbol match exists but score < promote threshold
   -> RETEST or OBSERVE depending on delta threshold
 ```
 
+## Local Research Manifest Check
+
+Use `--research-manifest-output-dir` with `--promotion-gate-enabled` to validate
+`research_input_manifest_v1` locally before allowing a scheduler or task role to
+write it to S3.
+
+```bash
+hypothesis-harness-app \
+  --hypothesis-state-s3-bucket nangman-crypto-dev-intel-candidate-<account-suffix> \
+  --hypothesis-state-s3-prefix hypothesis-state/schema=intel_candidate_hypothesis_state_v1/ \
+  --market-feature-delta-summary-s3-bucket nangman-crypto-dev-market-ingest-l1-<account-suffix> \
+  --market-feature-delta-summary-s3-prefix market_feature_delta_summary/ \
+  --market-feature-delta-s3-bucket nangman-crypto-dev-market-ingest-l1-<account-suffix> \
+  --market-feature-delta-s3-prefix market_feature_delta/ \
+  --candidate-bundle-s3-bucket nangman-crypto-dev-intel-candidate-<account-suffix> \
+  --candidate-bundle-s3-prefix candidate-evidence-bundle/priority=p2/ \
+  --historical-replay-run-index-s3-bucket nangman-crypto-dev-research-<account-suffix> \
+  --historical-replay-run-index-s3-prefix replay-run-index/ \
+  --output-dir /tmp/nangman-harness \
+  --promotion-gate-enabled \
+  --promotion-gate-include-retest \
+  --research-manifest-output-dir /tmp/nangman-harness-research-manifest
+```
+
+Local manifest files are written under:
+
+```text
+/tmp/nangman-harness-research-manifest/research-input-manifest/schema=research_input_manifest_v1/...
+```
+
 ## S3 Outputs
 
 ```text
 s3://nangman-crypto-dev-research-<account-suffix>/hypothesis-harness/hypothesis-harness-result/schema=hypothesis_harness_result_v1/...
 s3://nangman-crypto-dev-research-<account-suffix>/hypothesis-harness/hypothesis-harness-report/schema=hypothesis_harness_report_v1/...
+s3://nangman-crypto-dev-research-<account-suffix>/research-input-manifest/schema=research_input_manifest_v1/...
 ```
 
 ## Safety Boundary

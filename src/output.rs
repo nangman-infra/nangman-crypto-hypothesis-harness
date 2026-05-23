@@ -95,6 +95,22 @@ pub(crate) async fn write_research_manifest_to_s3(
     Ok(format!("s3://{}/{}", s3.bucket, key))
 }
 
+pub(crate) fn write_research_manifest_to_dir(
+    output_dir: &Path,
+    created_at_ms: i64,
+    manifest: &ResearchInputManifest,
+) -> AppResult<String> {
+    let packet_id = manifest
+        .research_packet_id
+        .as_deref()
+        .ok_or_else(|| AppError::validation("research manifest packet id is required"))?;
+    let key = format!(
+        "research-input-manifest/{}",
+        research_manifest_key(created_at_ms, packet_id)
+    );
+    write_json(output_dir, &key, manifest)
+}
+
 pub(crate) fn harness_result_key(created_at_ms: i64, report_id: &str) -> String {
     let part = partition(created_at_ms);
     format!(
