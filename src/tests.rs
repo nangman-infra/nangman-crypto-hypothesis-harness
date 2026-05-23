@@ -1,4 +1,5 @@
 use crate::args::{Args, parse_args};
+use crate::io::{ListedPayloadObject, select_latest_payload_keys};
 use crate::model::{MarketArtifactInputs, ResearchArtifactRef};
 use crate::promotion_gate::build_research_input_manifest;
 use crate::run::build_harness_result;
@@ -488,6 +489,35 @@ fn prefers_fresh_summary_over_detail_outlier() {
     assert_eq!(
         result.matched_market_artifact_ids,
         vec!["summary_delta".to_owned()]
+    );
+}
+
+#[test]
+fn s3_payload_selection_prefers_latest_modified_objects_over_lexical_order() {
+    let keys = select_latest_payload_keys(
+        vec![
+            ListedPayloadObject {
+                key: "hypothesis-state/schema=intel_candidate_hypothesis_state_v1/dt=2026-05-10/hour=02/hypothesis_id=cand_old/state.json".to_owned(),
+                last_modified_ms: 1_000,
+            },
+            ListedPayloadObject {
+                key: "hypothesis-state/schema=intel_candidate_hypothesis_state_v1/dt=2026-05-23/hour=05/hypothesis_id=cand_new/state.json".to_owned(),
+                last_modified_ms: 3_000,
+            },
+            ListedPayloadObject {
+                key: "hypothesis-state/schema=intel_candidate_hypothesis_state_v1/dt=2026-05-23/hour=04/hypothesis_id=cand_mid/state.json".to_owned(),
+                last_modified_ms: 2_000,
+            },
+        ],
+        2,
+    );
+
+    assert_eq!(
+        keys,
+        vec![
+            "hypothesis-state/schema=intel_candidate_hypothesis_state_v1/dt=2026-05-23/hour=05/hypothesis_id=cand_new/state.json".to_owned(),
+            "hypothesis-state/schema=intel_candidate_hypothesis_state_v1/dt=2026-05-23/hour=04/hypothesis_id=cand_mid/state.json".to_owned(),
+        ]
     );
 }
 

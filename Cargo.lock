@@ -1351,6 +1351,9 @@ dependencies = [
 name = "hypothesis-harness-app"
 version = "0.1.0"
 dependencies = [
+ "aws-config",
+ "aws-sdk-s3",
+ "aws-types",
  "chrono",
  "intel-candidate-app",
  "serde",

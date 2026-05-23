@@ -1,6 +1,10 @@
 use crate::args::{Args, S3InputArgs};
 use crate::model::{MarketArtifactInputs, ResearchArtifactRef};
 use crate::summary::expand_market_feature_delta_summary;
+use aws_config::BehaviorVersion;
+use aws_sdk_s3::Client;
+use aws_sdk_s3::config::Builder as S3ConfigBuilder;
+use aws_types::region::Region;
 use intel_candidate_app::error::{AppError, AppResult};
 use intel_candidate_app::model::{
     IntelCandidateEvidenceBundle, IntelCandidateHypothesisState, MarketFeatureDelta,
@@ -9,8 +13,12 @@ use intel_candidate_app::model::{
 use intel_candidate_app::storage::{ObjectStore, ObjectStoreConfig};
 use serde::Deserialize;
 use std::collections::BTreeSet;
+use std::env;
 use std::fs;
 use std::path::Path;
+
+const S3_LIST_PAGE_SIZE: i32 = 1_000;
+const S3_SCAN_LIMIT: usize = 100_000;
 
 pub(crate) async fn read_hypothesis_states(
     args: &Args,
@@ -98,9 +106,7 @@ pub(crate) async fn read_historical_replay_run_index_refs(
         return Ok((Vec::new(), 0));
     }
     let store = connect_store(s3).await?;
-    let mut keys = payload_keys(&store, s3).await?;
-    keys.sort_unstable_by(|left, right| right.cmp(left));
-    keys.truncate(args.historical_replay_run_index_s3_read_limit);
+    let keys = latest_payload_keys(s3, args.historical_replay_run_index_s3_read_limit).await?;
 
     let mut refs = Vec::new();
     let mut keys_read = 0;
@@ -131,11 +137,7 @@ pub(crate) async fn read_s3_records<T: serde::de::DeserializeOwned>(
     let store = connect_store(s3).await?;
     let mut records = Vec::new();
     let mut keys_read = 0;
-    let mut keys = payload_keys(&store, s3).await?;
-    if let Some(limit) = latest_read_limit {
-        keys.sort_unstable_by(|left, right| right.cmp(left));
-        keys.truncate(limit);
-    }
+    let keys = latest_payload_keys(s3, latest_read_limit.unwrap_or(s3.max_keys)).await?;
     for key in keys {
         let bytes = store.get_bytes(&key).await?;
         records.extend(read_json_array_or_jsonl_bytes::<T>(
@@ -160,18 +162,107 @@ async fn connect_store(s3: &S3InputArgs) -> AppResult<ObjectStore> {
     .await
 }
 
-async fn payload_keys(store: &ObjectStore, s3: &S3InputArgs) -> AppResult<Vec<String>> {
-    Ok(store
-        .list_keys(&s3.prefix, s3.max_keys)
-        .await?
-        .into_iter()
-        .filter(|key| is_json_payload_key(key))
-        .collect())
+async fn latest_payload_keys(s3: &S3InputArgs, limit: usize) -> AppResult<Vec<String>> {
+    Ok(select_latest_payload_keys(
+        list_payload_objects(s3).await?,
+        limit,
+    ))
+}
+
+async fn list_payload_objects(s3: &S3InputArgs) -> AppResult<Vec<ListedPayloadObject>> {
+    let client = connect_s3_client(s3).await;
+    let mut objects = Vec::new();
+    let mut continuation_token = None;
+    loop {
+        let mut request = client
+            .list_objects_v2()
+            .bucket(&s3.bucket)
+            .prefix(&s3.prefix)
+            .max_keys(S3_LIST_PAGE_SIZE);
+        if let Some(token) = continuation_token {
+            request = request.continuation_token(token);
+        }
+        let output = request.send().await.map_err(|error| {
+            AppError::aws(format!(
+                "list_objects_v2 bucket={} prefix={} error={error}",
+                s3.bucket, s3.prefix
+            ))
+        })?;
+        for object in output.contents() {
+            let Some(key) = object.key() else {
+                continue;
+            };
+            if !is_json_payload_key(key) {
+                continue;
+            }
+            objects.push(ListedPayloadObject {
+                key: key.to_owned(),
+                last_modified_ms: object
+                    .last_modified()
+                    .and_then(|date_time| date_time.to_millis().ok())
+                    .unwrap_or(0),
+            });
+            if objects.len() >= S3_SCAN_LIMIT {
+                return Err(AppError::validation(format!(
+                    "s3 prefix scan limit exceeded bucket={} prefix={} limit={S3_SCAN_LIMIT}; narrow the prefix",
+                    s3.bucket, s3.prefix
+                )));
+            }
+        }
+        continuation_token = output.next_continuation_token().map(ToOwned::to_owned);
+        if continuation_token.is_none() {
+            break;
+        }
+    }
+    Ok(objects)
+}
+
+async fn connect_s3_client(s3: &S3InputArgs) -> Client {
+    let mut loader =
+        aws_config::defaults(BehaviorVersion::latest()).region(Region::new(s3.region.clone()));
+    if let Some(profile) = s3.profile.as_ref() {
+        loader = loader.profile_name(profile);
+    }
+    if let Some(endpoint) = s3.endpoint.clone().or_else(env_s3_endpoint) {
+        loader = loader.endpoint_url(endpoint.trim_end_matches('/'));
+    }
+    let sdk_config = loader.load().await;
+    let force_path_style = s3.force_path_style
+        || env_bool("AWS_S3_FORCE_PATH_STYLE")
+        || env_bool("AWS_USE_PATH_STYLE_ENDPOINT");
+    Client::from_conf(
+        S3ConfigBuilder::from(&sdk_config)
+            .force_path_style(force_path_style)
+            .build(),
+    )
 }
 
 #[derive(Debug, Deserialize)]
 struct ReplayRunIndexRecordForSelection {
     source_candidate_lifecycle_key: String,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub(crate) struct ListedPayloadObject {
+    pub(crate) key: String,
+    pub(crate) last_modified_ms: i64,
+}
+
+pub(crate) fn select_latest_payload_keys(
+    mut objects: Vec<ListedPayloadObject>,
+    limit: usize,
+) -> Vec<String> {
+    objects.sort_unstable_by(|left, right| {
+        right
+            .last_modified_ms
+            .cmp(&left.last_modified_ms)
+            .then_with(|| right.key.cmp(&left.key))
+    });
+    objects
+        .into_iter()
+        .take(limit)
+        .map(|object| object.key)
+        .collect()
 }
 
 pub(crate) fn read_json_array_or_jsonl<T: serde::de::DeserializeOwned>(
@@ -217,4 +308,19 @@ pub(crate) fn read_json_array_or_jsonl_bytes<T: serde::de::DeserializeOwned>(
 
 fn is_json_payload_key(key: &str) -> bool {
     key.ends_with(".json") || key.ends_with(".jsonl")
+}
+
+fn env_s3_endpoint() -> Option<String> {
+    env::var("AWS_ENDPOINT_URL_S3")
+        .ok()
+        .or_else(|| env::var("AWS_ENDPOINT_URL").ok())
+        .map(|value| value.trim().trim_end_matches('/').to_owned())
+        .filter(|value| !value.is_empty())
+}
+
+fn env_bool(name: &str) -> bool {
+    env::var(name)
+        .ok()
+        .map(|value| matches!(value.to_ascii_lowercase().as_str(), "1" | "true" | "yes"))
+        .unwrap_or(false)
 }
