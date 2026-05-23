@@ -327,6 +327,69 @@ fn observes_when_only_stale_market_delta_exists() {
 }
 
 #[test]
+fn derivatives_harness_ignores_price_and_volume_only_delta() {
+    let args = build_args();
+    let result = build_harness_result(
+        &state(65),
+        &MarketArtifactInputs {
+            summary_deltas: vec![
+                delta("delta_price", "l1_001", "price", 10.0, 12.0, 2_000, 2_000),
+                delta(
+                    "delta_volume",
+                    "l1_001",
+                    "trade_volume",
+                    25.0,
+                    30.0,
+                    2_000,
+                    2_000,
+                ),
+            ],
+            detail_deltas: Vec::new(),
+        },
+        7_200_000,
+        1,
+        &args,
+    );
+    assert_eq!(result.verdict, "OBSERVE");
+    assert_eq!(
+        result.failure_reason.as_deref(),
+        Some("no_matching_market_feature_delta")
+    );
+    assert!(result.matched_metric_names.is_empty());
+}
+
+#[test]
+fn non_derivatives_harness_can_retest_on_price_delta() {
+    let args = build_args();
+    let mut state = state(55);
+    state.harness_queue_hint = "event_reaction_smoke".to_owned();
+    state.hypothesis_type = "general_intel_observation".to_owned();
+    state.reasons = vec!["missing_evidence".to_owned()];
+    state.retryable_reasons.clear();
+
+    let result = build_harness_result(
+        &state,
+        &MarketArtifactInputs {
+            summary_deltas: vec![delta(
+                "delta_price",
+                "l1_001",
+                "price",
+                3.0,
+                4.0,
+                2_000,
+                2_000,
+            )],
+            detail_deltas: Vec::new(),
+        },
+        7_200_000,
+        1,
+        &args,
+    );
+    assert_eq!(result.verdict, "RETEST");
+    assert_eq!(result.matched_metric_names, vec!["price".to_owned()]);
+}
+
+#[test]
 fn ignores_older_run_outlier_and_collapses_latest_metric_rows() {
     let args = build_args();
     let result = build_harness_result(

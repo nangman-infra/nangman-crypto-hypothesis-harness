@@ -71,10 +71,12 @@ fn select_latest_matching_snapshot<'a>(
         .iter()
         .flat_map(|symbol| canonical_symbol_candidates(symbol))
         .collect::<BTreeSet<_>>();
+    let metric_allowed = metric_allowed_for_state(state);
     let symbol_matches = deltas
         .iter()
         .filter(|delta| {
             symbols.contains(&delta.symbol_canonical.to_ascii_uppercase())
+                && metric_allowed(delta.metric_name.as_str())
                 && is_usable_market_artifact_quality(&delta.quality_status)
                 && has_usable_change(delta)
         })
@@ -148,6 +150,23 @@ fn is_newer_than_baseline(delta: &MarketFeatureDelta, baseline: &ArtifactBaselin
 
 fn has_usable_change(delta: &MarketFeatureDelta) -> bool {
     is_finite_option(delta.change_pct_15m) || is_finite_option(delta.change_pct_1h)
+}
+
+fn metric_allowed_for_state(state: &IntelCandidateHypothesisState) -> impl Fn(&str) -> bool + '_ {
+    let requires_derivatives_metric = state.harness_queue_hint == "derivatives_delta_persistence"
+        || state.hypothesis_type == "derivatives_pressure_shift"
+        || state
+            .reasons
+            .iter()
+            .chain(state.retryable_reasons.iter())
+            .any(|reason| reason == "derivatives_metric_delta_missing");
+    move |metric_name| {
+        !requires_derivatives_metric
+            || matches!(
+                metric_name,
+                "open_interest" | "funding_rate" | "liquidation" | "long_short_ratio"
+            )
+    }
 }
 
 fn is_finite_option(value: Option<f64>) -> bool {
