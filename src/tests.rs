@@ -96,6 +96,35 @@ fn build_promotion_args() -> Args {
     .unwrap()
 }
 
+#[test]
+fn requires_output_target_by_default() {
+    let result = parse_args(
+        ["--hypothesis-state-file", "/tmp/state.json"]
+            .into_iter()
+            .map(str::to_owned),
+    );
+
+    assert!(result.is_err());
+}
+
+#[test]
+fn allows_no_output_only_when_explicitly_requested() {
+    let args = parse_args(
+        [
+            "--hypothesis-state-file",
+            "/tmp/state.json",
+            "--allow-no-output",
+        ]
+        .into_iter()
+        .map(str::to_owned),
+    )
+    .unwrap();
+
+    assert!(args.allow_no_output);
+    assert!(args.output_dir.is_none());
+    assert!(args.output_s3.is_none());
+}
+
 fn state_with_market_baseline(
     score: i64,
     window_end_ms: i64,

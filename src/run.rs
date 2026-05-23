@@ -34,7 +34,8 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
             "s3_candidate_bundle_read_limit": args.candidate_bundle_s3_read_limit,
             "s3_historical_replay_run_index_input_configured": args.historical_replay_run_index_s3.is_some(),
             "s3_historical_replay_run_index_read_limit": args.historical_replay_run_index_s3_read_limit,
-            "s3_output_configured": args.output_s3.is_some()
+            "s3_output_configured": args.output_s3.is_some(),
+            "allow_no_output": args.allow_no_output
         }),
     );
     let (states, hypothesis_state_s3_keys_read) = read_hypothesis_states(&args).await?;

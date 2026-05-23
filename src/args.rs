@@ -19,6 +19,7 @@ pub(crate) struct Args {
     pub(crate) historical_replay_run_index_s3_read_limit: usize,
     pub(crate) output_dir: Option<PathBuf>,
     pub(crate) output_s3: Option<S3OutputArgs>,
+    pub(crate) allow_no_output: bool,
     pub(crate) research_manifest_s3: Option<S3OutputArgs>,
     pub(crate) promotion_gate_enabled: bool,
     pub(crate) promotion_gate_include_retest: bool,
@@ -70,6 +71,7 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
         historical_replay_run_index_s3_read_limit: 20,
         output_dir: None,
         output_s3: None,
+        allow_no_output: false,
         research_manifest_s3: None,
         promotion_gate_enabled: false,
         promotion_gate_include_retest: false,
@@ -342,6 +344,7 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
             }
             "--promotion-gate-enabled" => args.promotion_gate_enabled = true,
             "--promotion-gate-include-retest" => args.promotion_gate_include_retest = true,
+            "--allow-no-output" => args.allow_no_output = true,
             "--promotion-gate-min-candidate-score" => {
                 args.promotion_gate_min_candidate_score =
                     non_negative_i64(values.next(), "--promotion-gate-min-candidate-score")?;
@@ -414,9 +417,9 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
             "--hypothesis-state-file or --hypothesis-state-s3-bucket/--hypothesis-state-s3-prefix is required",
         ));
     }
-    if args.output_dir.is_none() && s3.bucket.trim().is_empty() {
+    if args.output_dir.is_none() && s3.bucket.trim().is_empty() && !args.allow_no_output {
         return Err(AppError::config(
-            "at least one output target is required: --output-dir or --output-s3-bucket",
+            "at least one output target is required: --output-dir or --output-s3-bucket; use --allow-no-output only for explicit smoke validation",
         ));
     }
     if !s3.bucket.trim().is_empty() {
@@ -466,6 +469,7 @@ Usage:
     --market-feature-delta-s3-read-limit 3 \
     --output-s3-bucket nangman-crypto-dev-research-<account-suffix> \
     --output-s3-prefix hypothesis-harness/ \
+    [--allow-no-output] \
     --promotion-gate-enabled \
     --promotion-gate-include-retest \
     --candidate-bundle-s3-bucket nangman-crypto-dev-intel-candidate-<account-suffix> \
