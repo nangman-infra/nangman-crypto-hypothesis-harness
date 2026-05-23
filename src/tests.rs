@@ -6,7 +6,7 @@ use crate::model::{
 };
 use crate::output::write_research_manifest_to_dir;
 use crate::promotion_gate::build_research_input_manifest;
-use crate::run::{build_harness_result, write_research_manifest_outputs};
+use crate::run::{build_harness_result, handle_research_manifest_outputs};
 use intel_candidate_app::model::{
     CandidateClass, IntelCandidateEvidenceBundle, IntelCandidateHypothesisState,
     MarketContextStatus, MarketFeatureDelta, ScoreBreakdown, SelectedMarketArtifactTrace,
@@ -738,7 +738,7 @@ async fn writes_local_research_manifest_outputs_for_run_summary() {
     let mut output_files = Vec::new();
     let mut output_s3_uris = Vec::new();
 
-    let (output_path, output_uri) = write_research_manifest_outputs(
+    let created_count = handle_research_manifest_outputs(
         &args,
         7_200_000,
         &research_manifest(),
@@ -748,13 +748,44 @@ async fn writes_local_research_manifest_outputs_for_run_summary() {
     .await
     .unwrap();
 
+    assert_eq!(created_count, 1);
+    let output_path = output_files.first().cloned();
     assert!(output_path.as_deref().is_some_and(|path| {
         path.ends_with(
             "research-input-manifest/schema=research_input_manifest_v1/dt=1970-01-01/hour=02/run_id=research_packet_001/manifest.json",
         )
     }));
-    assert!(output_uri.is_none());
     assert_eq!(output_files, vec![output_path.unwrap()]);
     assert!(output_s3_uris.is_empty());
     std::fs::remove_dir_all(&output_dir).unwrap();
+}
+
+#[tokio::test]
+async fn skips_research_manifest_summary_when_no_manifest_output_target() {
+    let args = parse_args(
+        [
+            "--hypothesis-state-file",
+            "/tmp/state.json",
+            "--allow-no-output",
+        ]
+        .into_iter()
+        .map(str::to_owned),
+    )
+    .unwrap();
+    let mut output_files = Vec::new();
+    let mut output_s3_uris = Vec::new();
+
+    let created_count = handle_research_manifest_outputs(
+        &args,
+        7_200_000,
+        &research_manifest(),
+        &mut output_files,
+        &mut output_s3_uris,
+    )
+    .await
+    .unwrap();
+
+    assert_eq!(created_count, 0);
+    assert!(output_files.is_empty());
+    assert!(output_s3_uris.is_empty());
 }

@@ -109,7 +109,7 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
         &candidate_bundles,
         &historical_replay_run_index_refs,
     ) {
-        let (output_path, output_uri) = write_research_manifest_outputs(
+        research_manifests_created = handle_research_manifest_outputs(
             &args,
             created_at_ms,
             &manifest,
@@ -117,22 +117,6 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
             &mut output_s3_uris,
         )
         .await?;
-        if output_path.is_some() || output_uri.is_some() {
-            research_manifests_created = 1;
-            log_event(
-                "research_manifest_created",
-                serde_json::json!({
-                    "research_packet_id": manifest.research_packet_id,
-                    "candidate_bundle_ref_count": manifest.candidate_bundle_refs.len(),
-                    "market_feature_delta_ref_count": manifest.market_feature_delta_refs.len(),
-                    "market_regime_context_ref_count": manifest.market_regime_context_refs.len(),
-                    "hypothesis_harness_result_ref_count": manifest.hypothesis_harness_result_refs.len(),
-                    "historical_replay_run_index_ref_count": manifest.historical_replay_run_index_refs.len(),
-                    "output_path": output_path,
-                    "output_uri": output_uri
-                }),
-            );
-        }
     } else if args.promotion_gate_enabled {
         log_event(
             "research_manifest_skipped",
@@ -155,6 +139,40 @@ pub(crate) async fn async_run(args: Args) -> AppResult<RunSummary> {
         output_files,
         output_s3_uris,
     })
+}
+
+pub(crate) async fn handle_research_manifest_outputs(
+    args: &Args,
+    created_at_ms: i64,
+    manifest: &ResearchInputManifest,
+    output_files: &mut Vec<String>,
+    output_s3_uris: &mut Vec<String>,
+) -> AppResult<usize> {
+    let (output_path, output_uri) = write_research_manifest_outputs(
+        args,
+        created_at_ms,
+        manifest,
+        output_files,
+        output_s3_uris,
+    )
+    .await?;
+    if output_path.is_none() && output_uri.is_none() {
+        return Ok(0);
+    }
+    log_event(
+        "research_manifest_created",
+        serde_json::json!({
+            "research_packet_id": manifest.research_packet_id,
+            "candidate_bundle_ref_count": manifest.candidate_bundle_refs.len(),
+            "market_feature_delta_ref_count": manifest.market_feature_delta_refs.len(),
+            "market_regime_context_ref_count": manifest.market_regime_context_refs.len(),
+            "hypothesis_harness_result_ref_count": manifest.hypothesis_harness_result_refs.len(),
+            "historical_replay_run_index_ref_count": manifest.historical_replay_run_index_refs.len(),
+            "output_path": output_path,
+            "output_uri": output_uri
+        }),
+    );
+    Ok(1)
 }
 
 pub(crate) async fn write_research_manifest_outputs(
