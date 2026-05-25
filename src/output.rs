@@ -32,10 +32,8 @@ pub(crate) async fn write_outputs_to_s3(
     report: &HarnessRunReport,
 ) -> AppResult<Vec<String>> {
     let store = ObjectStore::connect(ObjectStoreConfig {
-        endpoint: s3.endpoint.clone(),
         bucket: s3.bucket.clone(),
         region: s3.region.clone(),
-        force_path_style: s3.force_path_style,
         profile: s3.profile.clone(),
         access_key_id: None,
         secret_access_key: None,
@@ -71,10 +69,8 @@ pub(crate) async fn write_research_manifest_to_s3(
     manifest: &ResearchInputManifest,
 ) -> AppResult<String> {
     let store = ObjectStore::connect(ObjectStoreConfig {
-        endpoint: s3.endpoint.clone(),
         bucket: s3.bucket.clone(),
         region: s3.region.clone(),
-        force_path_style: s3.force_path_style,
         profile: s3.profile.clone(),
         access_key_id: None,
         secret_access_key: None,

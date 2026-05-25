@@ -190,51 +190,6 @@ fn help_documents_local_or_s3_research_manifest_output() {
     assert!(err.contains("[--research-manifest-s3-bucket"));
 }
 
-#[test]
-fn rejects_custom_s3_endpoint_runtime_config() {
-    let err = parse_args(
-        [
-            "--hypothesis-state-s3-bucket",
-            "candidate-bucket",
-            "--hypothesis-state-s3-prefix",
-            "hypothesis-state/",
-            "--hypothesis-state-s3-endpoint",
-            "https://s3.nangman.cloud",
-            "--output-dir",
-            "/tmp/out",
-        ]
-        .into_iter()
-        .map(str::to_owned),
-    )
-    .unwrap_err()
-    .to_string();
-
-    assert!(err.contains("custom endpoint is unsupported"));
-    assert!(err.contains("AWS S3 with IAM"));
-}
-
-#[test]
-fn rejects_path_style_s3_runtime_config() {
-    let err = parse_args(
-        [
-            "--hypothesis-state-s3-bucket",
-            "candidate-bucket",
-            "--hypothesis-state-s3-prefix",
-            "hypothesis-state/",
-            "--hypothesis-state-s3-force-path-style",
-            "--output-dir",
-            "/tmp/out",
-        ]
-        .into_iter()
-        .map(str::to_owned),
-    )
-    .unwrap_err()
-    .to_string();
-
-    assert!(err.contains("path-style endpoint mode is unsupported"));
-    assert!(err.contains("AWS S3 with IAM"));
-}
-
 fn state_with_market_baseline(
     score: i64,
     window_end_ms: i64,

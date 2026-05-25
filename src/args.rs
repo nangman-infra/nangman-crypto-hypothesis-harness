@@ -40,8 +40,6 @@ pub(crate) struct S3InputArgs {
     pub(crate) bucket: String,
     pub(crate) region: String,
     pub(crate) prefix: String,
-    pub(crate) endpoint: Option<String>,
-    pub(crate) force_path_style: bool,
     pub(crate) profile: Option<String>,
     pub(crate) max_keys: usize,
 }
@@ -51,8 +49,6 @@ pub(crate) struct S3OutputArgs {
     pub(crate) bucket: String,
     pub(crate) region: String,
     pub(crate) prefix: String,
-    pub(crate) endpoint: Option<String>,
-    pub(crate) force_path_style: bool,
     pub(crate) profile: Option<String>,
 }
 
@@ -96,16 +92,12 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
         bucket: String::new(),
         region: DEFAULT_AWS_REGION.to_owned(),
         prefix: String::new(),
-        endpoint: None,
-        force_path_style: false,
         profile: None,
     };
     let mut research_manifest_s3 = S3OutputArgs {
         bucket: String::new(),
         region: DEFAULT_AWS_REGION.to_owned(),
         prefix: String::new(),
-        endpoint: None,
-        force_path_style: false,
         profile: None,
     };
     while let Some(arg) = values.next() {
@@ -146,13 +138,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                     "--hypothesis-state-s3-region requires a region",
                 )?;
             }
-            "--hypothesis-state-s3-endpoint" => {
-                state_s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--hypothesis-state-s3-endpoint requires a URL",
-                )?);
-            }
-            "--hypothesis-state-s3-force-path-style" => state_s3.force_path_style = true,
             "--hypothesis-state-s3-max-keys" => {
                 state_s3.max_keys =
                     positive_usize(values.next(), "--hypothesis-state-s3-max-keys")?;
@@ -174,15 +159,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                     &mut values,
                     "--market-feature-delta-summary-s3-region requires a region",
                 )?;
-            }
-            "--market-feature-delta-summary-s3-endpoint" => {
-                delta_summary_s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--market-feature-delta-summary-s3-endpoint requires a URL",
-                )?);
-            }
-            "--market-feature-delta-summary-s3-force-path-style" => {
-                delta_summary_s3.force_path_style = true
             }
             "--market-feature-delta-summary-s3-max-keys" => {
                 delta_summary_s3.max_keys =
@@ -212,13 +188,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                     "--market-feature-delta-s3-region requires a region",
                 )?;
             }
-            "--market-feature-delta-s3-endpoint" => {
-                delta_s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--market-feature-delta-s3-endpoint requires a URL",
-                )?);
-            }
-            "--market-feature-delta-s3-force-path-style" => delta_s3.force_path_style = true,
             "--market-feature-delta-s3-max-keys" => {
                 delta_s3.max_keys =
                     positive_usize(values.next(), "--market-feature-delta-s3-max-keys")?;
@@ -245,13 +214,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                     "--candidate-bundle-s3-region requires a region",
                 )?;
             }
-            "--candidate-bundle-s3-endpoint" => {
-                candidate_bundle_s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--candidate-bundle-s3-endpoint requires a URL",
-                )?);
-            }
-            "--candidate-bundle-s3-force-path-style" => candidate_bundle_s3.force_path_style = true,
             "--candidate-bundle-s3-max-keys" => {
                 candidate_bundle_s3.max_keys =
                     positive_usize(values.next(), "--candidate-bundle-s3-max-keys")?;
@@ -278,15 +240,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                     "--historical-replay-run-index-s3-region requires a region",
                 )?;
             }
-            "--historical-replay-run-index-s3-endpoint" => {
-                historical_replay_run_index_s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--historical-replay-run-index-s3-endpoint requires a URL",
-                )?);
-            }
-            "--historical-replay-run-index-s3-force-path-style" => {
-                historical_replay_run_index_s3.force_path_style = true
-            }
             "--historical-replay-run-index-s3-max-keys" => {
                 historical_replay_run_index_s3.max_keys =
                     positive_usize(values.next(), "--historical-replay-run-index-s3-max-keys")?;
@@ -310,13 +263,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
             "--output-s3-prefix" => {
                 s3.prefix = next_string(&mut values, "--output-s3-prefix requires a prefix")?
             }
-            "--output-s3-endpoint" => {
-                s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--output-s3-endpoint requires a URL",
-                )?)
-            }
-            "--output-s3-force-path-style" => s3.force_path_style = true,
             "--research-manifest-s3-bucket" => {
                 research_manifest_s3.bucket = next_string(
                     &mut values,
@@ -334,15 +280,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
                     &mut values,
                     "--research-manifest-s3-prefix requires a prefix",
                 )?
-            }
-            "--research-manifest-s3-endpoint" => {
-                research_manifest_s3.endpoint = Some(next_string(
-                    &mut values,
-                    "--research-manifest-s3-endpoint requires a URL",
-                )?)
-            }
-            "--research-manifest-s3-force-path-style" => {
-                research_manifest_s3.force_path_style = true
             }
             "--research-manifest-output-dir" => {
                 args.research_manifest_output_dir = Some(absolute_path_arg(
@@ -436,7 +373,6 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
     if !research_manifest_s3.bucket.trim().is_empty() {
         args.research_manifest_s3 = Some(research_manifest_s3);
     }
-    validate_s3_runtime_contract(&args)?;
     if args.promotion_gate_enabled {
         if args.candidate_bundle_s3.is_none() {
             return Err(AppError::config(
@@ -452,65 +388,11 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
     Ok(args)
 }
 
-fn validate_s3_runtime_contract(args: &Args) -> AppResult<()> {
-    validate_optional_s3_input("--hypothesis-state-s3", args.hypothesis_state_s3.as_ref())?;
-    validate_optional_s3_input(
-        "--market-feature-delta-summary-s3",
-        args.market_feature_delta_summary_s3.as_ref(),
-    )?;
-    validate_optional_s3_input(
-        "--market-feature-delta-s3",
-        args.market_feature_delta_s3.as_ref(),
-    )?;
-    validate_optional_s3_input("--candidate-bundle-s3", args.candidate_bundle_s3.as_ref())?;
-    validate_optional_s3_input(
-        "--historical-replay-run-index-s3",
-        args.historical_replay_run_index_s3.as_ref(),
-    )?;
-    validate_optional_s3_output("--output-s3", args.output_s3.as_ref())?;
-    validate_optional_s3_output("--research-manifest-s3", args.research_manifest_s3.as_ref())?;
-    Ok(())
-}
-
-fn validate_optional_s3_input(label: &str, s3: Option<&S3InputArgs>) -> AppResult<()> {
-    let Some(s3) = s3 else {
-        return Ok(());
-    };
-    validate_s3_runtime_config(label, s3.endpoint.as_deref(), s3.force_path_style)
-}
-
-fn validate_optional_s3_output(label: &str, s3: Option<&S3OutputArgs>) -> AppResult<()> {
-    let Some(s3) = s3 else {
-        return Ok(());
-    };
-    validate_s3_runtime_config(label, s3.endpoint.as_deref(), s3.force_path_style)
-}
-
-fn validate_s3_runtime_config(
-    label: &str,
-    endpoint: Option<&str>,
-    force_path_style: bool,
-) -> AppResult<()> {
-    if endpoint.is_some_and(|value| !value.trim().is_empty()) {
-        return Err(AppError::config(format!(
-            "{label} custom endpoint is unsupported; use AWS S3 with IAM"
-        )));
-    }
-    if force_path_style {
-        return Err(AppError::config(format!(
-            "{label} path-style endpoint mode is unsupported; use AWS S3 with IAM"
-        )));
-    }
-    Ok(())
-}
-
 fn s3_input_args() -> S3InputArgs {
     S3InputArgs {
         bucket: String::new(),
         region: DEFAULT_AWS_REGION.to_owned(),
         prefix: String::new(),
-        endpoint: None,
-        force_path_style: false,
         profile: None,
         max_keys: 1_000,
     }
