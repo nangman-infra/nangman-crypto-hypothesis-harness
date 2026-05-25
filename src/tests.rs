@@ -692,6 +692,55 @@ fn builds_research_manifest_for_retest_p2_bundle() {
 }
 
 #[test]
+fn research_manifest_packet_id_is_stable_for_same_harness_pressure() {
+    let args = build_promotion_args();
+    let result = build_harness_result(
+        &state(55),
+        &MarketArtifactInputs {
+            summary_deltas: vec![delta(
+                "summary_delta",
+                "l1_summary",
+                "open_interest",
+                1.0,
+                6.0,
+                6_000,
+                6_000,
+            )],
+            detail_deltas: Vec::new(),
+        },
+        7_200_000,
+        1,
+        &args,
+    );
+    let historical_refs = vec![ResearchArtifactRef {
+        uri: "s3://research-bucket/replay-run-index/schema=replay_run_index_v1/dt=2026-05-10/hour=11/research_run_report_id=report_001/part-000001.jsonl".to_owned(),
+    }];
+
+    let first = build_research_input_manifest(
+        &args,
+        7_200_000,
+        "report_001",
+        Some("s3://research-bucket/hypothesis-harness/hypothesis-harness-result/schema=hypothesis_harness_result_v1/first.jsonl"),
+        std::slice::from_ref(&result),
+        &[p2_bundle()],
+        &historical_refs,
+    )
+    .expect("first manifest is created");
+    let second = build_research_input_manifest(
+        &args,
+        7_260_000,
+        "report_002",
+        Some("s3://research-bucket/hypothesis-harness/hypothesis-harness-result/schema=hypothesis_harness_result_v1/second.jsonl"),
+        &[result],
+        &[p2_bundle()],
+        &historical_refs,
+    )
+    .expect("second manifest is created");
+
+    assert_eq!(first.research_packet_id, second.research_packet_id);
+}
+
+#[test]
 fn writes_research_manifest_to_local_contract_path() {
     let output_dir = std::env::temp_dir().join(format!(
         "hypothesis-harness-local-manifest-test-{}",
@@ -706,7 +755,7 @@ fn writes_research_manifest_to_local_contract_path() {
 
     assert!(path.starts_with(output_dir.to_str().unwrap()));
     assert!(path.ends_with(
-        "research-input-manifest/schema=research_input_manifest_v1/dt=1970-01-01/hour=02/run_id=research_packet_001/manifest.json"
+        "research-input-manifest/schema=research_input_manifest_v1/dedupe_key=research_packet_001/manifest.json"
     ));
     let bytes = std::fs::read(&path).unwrap();
     let written: ResearchInputManifest = serde_json::from_slice(&bytes).unwrap();
@@ -758,7 +807,7 @@ async fn writes_local_research_manifest_outputs_for_run_summary() {
     let output_path = output_files.first().cloned();
     assert!(output_path.as_deref().is_some_and(|path| {
         path.ends_with(
-            "research-input-manifest/schema=research_input_manifest_v1/dt=1970-01-01/hour=02/run_id=research_packet_001/manifest.json",
+            "research-input-manifest/schema=research_input_manifest_v1/dedupe_key=research_packet_001/manifest.json",
         )
     }));
     assert_eq!(output_files, vec![output_path.unwrap()]);

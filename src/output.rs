@@ -85,13 +85,15 @@ pub(crate) async fn write_research_manifest_to_s3(
         .as_deref()
         .ok_or_else(|| AppError::validation("research manifest packet id is required"))?;
     let key = prefixed_key(&s3.prefix, &research_manifest_key(created_at_ms, packet_id));
-    store
-        .put_bytes_idempotent(
-            &key,
-            serde_json::to_vec_pretty(manifest)?,
-            "application/json",
-        )
-        .await?;
+    let bytes = serde_json::to_vec_pretty(manifest)?;
+    match store
+        .put_bytes_idempotent(&key, bytes, "application/json")
+        .await
+    {
+        Ok(()) => {}
+        Err(AppError::Validation(message)) if message.contains("idempotency conflict") => {}
+        Err(error) => return Err(error),
+    }
     Ok(format!("s3://{}/{}", s3.bucket, key))
 }
 
@@ -127,11 +129,10 @@ fn harness_report_key(created_at_ms: i64, report_id: &str) -> String {
     )
 }
 
-fn research_manifest_key(created_at_ms: i64, packet_id: &str) -> String {
-    let part = partition(created_at_ms);
+fn research_manifest_key(_created_at_ms: i64, packet_id: &str) -> String {
     format!(
-        "schema={}/dt={}/hour={:02}/run_id={}/manifest.json",
-        RESEARCH_INPUT_MANIFEST_SCHEMA_VERSION, part.date, part.hour, packet_id
+        "schema={}/dedupe_key={}/manifest.json",
+        RESEARCH_INPUT_MANIFEST_SCHEMA_VERSION, packet_id
     )
 }
 

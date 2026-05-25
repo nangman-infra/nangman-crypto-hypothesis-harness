@@ -9,8 +9,8 @@ use std::collections::BTreeSet;
 
 pub(crate) fn build_research_input_manifest(
     args: &Args,
-    created_at_ms: i64,
-    report_id: &str,
+    _created_at_ms: i64,
+    _report_id: &str,
     harness_result_s3_uri: Option<&str>,
     results: &[HarnessResult],
     bundles: &[IntelCandidateEvidenceBundle],
@@ -56,12 +56,15 @@ pub(crate) fn build_research_input_manifest(
         .iter()
         .map(|bundle| bundle.candidate_lifecycle_key.as_str())
         .collect::<Vec<_>>();
+    let pressure_signature = harness_pressure_signature(args, results);
     let research_packet_id = stable_id(
         "research_manifest",
         &[
-            report_id,
-            &created_at_ms.to_string(),
             &candidate_keys.join("|"),
+            &ref_signature(&market_feature_delta_refs),
+            &ref_signature(&market_regime_context_refs),
+            &ref_signature(historical_replay_run_index_refs),
+            &pressure_signature,
         ],
     );
 
@@ -86,6 +89,37 @@ pub(crate) fn build_research_input_manifest(
             max_replay_run_count: args.promotion_gate_max_replay_runs,
         },
     })
+}
+
+fn harness_pressure_signature(args: &Args, results: &[HarnessResult]) -> String {
+    let mut signatures = results
+        .iter()
+        .filter(|result| {
+            result.verdict == "PROMOTE"
+                || (args.promotion_gate_include_retest && result.verdict == "RETEST")
+        })
+        .map(|result| {
+            format!(
+                "{}:{}:{}:{}:{}",
+                result.hypothesis_state_key,
+                result.verdict,
+                result.known_as_of_ms,
+                result.matched_market_artifact_ids.join(","),
+                result.matched_metric_names.join(",")
+            )
+        })
+        .collect::<Vec<_>>();
+    signatures.sort();
+    signatures.join("|")
+}
+
+fn ref_signature(refs: &[ResearchArtifactRef]) -> String {
+    let mut refs = refs
+        .iter()
+        .map(|item| item.uri.as_str())
+        .collect::<Vec<_>>();
+    refs.sort();
+    refs.join("|")
 }
 
 pub(crate) fn eligible_candidate_lifecycle_keys(
