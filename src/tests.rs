@@ -718,6 +718,9 @@ fn research_manifest_packet_id_is_stable_for_same_harness_pressure() {
     let refreshed_historical_refs = vec![ResearchArtifactRef {
         uri: "s3://research-bucket/replay-run-index/schema=replay_run_index_v1/dt=2026-05-10/hour=12/research_run_report_id=report_002/part-000001.jsonl".to_owned(),
     }];
+    let mut refreshed_result = result.clone();
+    refreshed_result.created_at_ms += 60_000;
+    refreshed_result.known_as_of_ms += 60_000;
 
     let first = build_research_input_manifest(
         &args,
@@ -734,7 +737,7 @@ fn research_manifest_packet_id_is_stable_for_same_harness_pressure() {
         7_260_000,
         "report_002",
         Some("s3://research-bucket/hypothesis-harness/hypothesis-harness-result/schema=hypothesis_harness_result_v1/second.jsonl"),
-        &[result],
+        &[refreshed_result],
         &[p2_bundle()],
         &refreshed_historical_refs,
     )

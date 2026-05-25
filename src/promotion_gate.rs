@@ -99,10 +99,9 @@ fn harness_pressure_signature(args: &Args, results: &[HarnessResult]) -> String 
         })
         .map(|result| {
             format!(
-                "{}:{}:{}:{}:{}",
+                "{}:{}:{}:{}",
                 result.hypothesis_state_key,
                 result.verdict,
-                result.known_as_of_ms,
                 result.matched_market_artifact_ids.join(","),
                 result.matched_metric_names.join(",")
             )
