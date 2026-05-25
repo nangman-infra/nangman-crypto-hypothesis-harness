@@ -79,7 +79,10 @@ pub(crate) fn build_research_input_manifest(
             max_candidate_bundle_count: args.promotion_gate_max_candidates,
             max_market_artifact_ref_count: args.promotion_gate_max_market_refs,
             max_hypothesis_harness_result_ref_count: args.promotion_gate_max_harness_result_refs,
-            max_historical_replay_run_ref_count: historical_replay_run_index_refs.len().max(1),
+            max_historical_replay_run_ref_count: historical_replay_run_index_refs
+                .len()
+                .max(args.historical_replay_run_index_s3_read_limit)
+                .max(1),
             max_replay_run_count: args.promotion_gate_max_replay_runs,
         },
     })

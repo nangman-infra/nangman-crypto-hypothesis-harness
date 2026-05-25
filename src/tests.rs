@@ -682,6 +682,12 @@ fn builds_research_manifest_for_retest_p2_bundle() {
     assert_eq!(manifest.market_regime_context_refs.len(), 1);
     assert_eq!(manifest.hypothesis_harness_result_refs.len(), 1);
     assert_eq!(manifest.historical_replay_run_index_refs.len(), 1);
+    assert_eq!(
+        manifest
+            .runtime_budget_policy
+            .max_historical_replay_run_ref_count,
+        args.historical_replay_run_index_s3_read_limit
+    );
     assert_eq!(manifest.runtime_budget_policy.max_replay_run_count, 500);
 }
 
