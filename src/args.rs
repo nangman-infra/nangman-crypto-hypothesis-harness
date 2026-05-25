@@ -436,6 +436,7 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
     if !research_manifest_s3.bucket.trim().is_empty() {
         args.research_manifest_s3 = Some(research_manifest_s3);
     }
+    validate_s3_runtime_contract(&args)?;
     if args.promotion_gate_enabled {
         if args.candidate_bundle_s3.is_none() {
             return Err(AppError::config(
@@ -449,6 +450,58 @@ pub(crate) fn parse_args(mut values: impl Iterator<Item = String>) -> AppResult<
         }
     }
     Ok(args)
+}
+
+fn validate_s3_runtime_contract(args: &Args) -> AppResult<()> {
+    validate_optional_s3_input("--hypothesis-state-s3", args.hypothesis_state_s3.as_ref())?;
+    validate_optional_s3_input(
+        "--market-feature-delta-summary-s3",
+        args.market_feature_delta_summary_s3.as_ref(),
+    )?;
+    validate_optional_s3_input(
+        "--market-feature-delta-s3",
+        args.market_feature_delta_s3.as_ref(),
+    )?;
+    validate_optional_s3_input("--candidate-bundle-s3", args.candidate_bundle_s3.as_ref())?;
+    validate_optional_s3_input(
+        "--historical-replay-run-index-s3",
+        args.historical_replay_run_index_s3.as_ref(),
+    )?;
+    validate_optional_s3_output("--output-s3", args.output_s3.as_ref())?;
+    validate_optional_s3_output("--research-manifest-s3", args.research_manifest_s3.as_ref())?;
+    Ok(())
+}
+
+fn validate_optional_s3_input(label: &str, s3: Option<&S3InputArgs>) -> AppResult<()> {
+    let Some(s3) = s3 else {
+        return Ok(());
+    };
+    validate_s3_runtime_config(label, s3.endpoint.as_deref(), s3.force_path_style)
+}
+
+fn validate_optional_s3_output(label: &str, s3: Option<&S3OutputArgs>) -> AppResult<()> {
+    let Some(s3) = s3 else {
+        return Ok(());
+    };
+    validate_s3_runtime_config(label, s3.endpoint.as_deref(), s3.force_path_style)
+}
+
+fn validate_s3_runtime_config(
+    label: &str,
+    endpoint: Option<&str>,
+    force_path_style: bool,
+) -> AppResult<()> {
+    if endpoint.is_some_and(|value| !value.trim().is_empty()) {
+        return Err(AppError::config(format!(
+            "{label} custom endpoint is unsupported; use AWS S3 with IAM"
+        )));
+    }
+    if force_path_style {
+        return Err(AppError::config(format!(
+            "{label} path-style endpoint mode is unsupported; use AWS S3 with IAM"
+        )));
+    }
+    Ok(())
 }
 
 fn s3_input_args() -> S3InputArgs {

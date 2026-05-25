@@ -3,7 +3,6 @@ use crate::model::{MarketArtifactInputs, ResearchArtifactRef};
 use crate::summary::expand_market_feature_delta_summary;
 use aws_config::BehaviorVersion;
 use aws_sdk_s3::Client;
-use aws_sdk_s3::config::Builder as S3ConfigBuilder;
 use aws_types::region::Region;
 use intel_candidate_app::error::{AppError, AppResult};
 use intel_candidate_app::model::{
@@ -170,7 +169,7 @@ async fn latest_payload_keys(s3: &S3InputArgs, limit: usize) -> AppResult<Vec<St
 }
 
 async fn list_payload_objects(s3: &S3InputArgs) -> AppResult<Vec<ListedPayloadObject>> {
-    let client = connect_s3_client(s3).await;
+    let client = connect_s3_client(s3).await?;
     let mut objects = Vec::new();
     let mut continuation_token = None;
     loop {
@@ -217,24 +216,16 @@ async fn list_payload_objects(s3: &S3InputArgs) -> AppResult<Vec<ListedPayloadOb
     Ok(objects)
 }
 
-async fn connect_s3_client(s3: &S3InputArgs) -> Client {
+async fn connect_s3_client(s3: &S3InputArgs) -> AppResult<Client> {
+    validate_s3_runtime_config(s3.endpoint.as_deref(), s3.force_path_style)?;
+    validate_s3_runtime_config(env_s3_endpoint().as_deref(), env_path_style_is_set())?;
     let mut loader =
         aws_config::defaults(BehaviorVersion::latest()).region(Region::new(s3.region.clone()));
     if let Some(profile) = s3.profile.as_ref() {
         loader = loader.profile_name(profile);
     }
-    if let Some(endpoint) = s3.endpoint.clone().or_else(env_s3_endpoint) {
-        loader = loader.endpoint_url(endpoint.trim_end_matches('/'));
-    }
     let sdk_config = loader.load().await;
-    let force_path_style = s3.force_path_style
-        || env_bool("AWS_S3_FORCE_PATH_STYLE")
-        || env_bool("AWS_USE_PATH_STYLE_ENDPOINT");
-    Client::from_conf(
-        S3ConfigBuilder::from(&sdk_config)
-            .force_path_style(force_path_style)
-            .build(),
-    )
+    Ok(Client::new(&sdk_config))
 }
 
 #[derive(Debug, Deserialize)]
@@ -316,6 +307,24 @@ fn env_s3_endpoint() -> Option<String> {
         .or_else(|| env::var("AWS_ENDPOINT_URL").ok())
         .map(|value| value.trim().trim_end_matches('/').to_owned())
         .filter(|value| !value.is_empty())
+}
+
+fn env_path_style_is_set() -> bool {
+    env_bool("AWS_S3_FORCE_PATH_STYLE") || env_bool("AWS_USE_PATH_STYLE_ENDPOINT")
+}
+
+fn validate_s3_runtime_config(endpoint: Option<&str>, force_path_style: bool) -> AppResult<()> {
+    if endpoint.is_some_and(|value| !value.trim().is_empty()) {
+        return Err(AppError::config(
+            "custom S3 endpoints are unsupported; use AWS S3 with IAM",
+        ));
+    }
+    if force_path_style {
+        return Err(AppError::config(
+            "path-style S3 endpoints are unsupported; use AWS S3 with IAM",
+        ));
+    }
+    Ok(())
 }
 
 fn env_bool(name: &str) -> bool {
