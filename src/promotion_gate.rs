@@ -63,7 +63,6 @@ pub(crate) fn build_research_input_manifest(
             &candidate_keys.join("|"),
             &ref_signature(&market_feature_delta_refs),
             &ref_signature(&market_regime_context_refs),
-            &ref_signature(historical_replay_run_index_refs),
             &pressure_signature,
         ],
     );

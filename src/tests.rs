@@ -715,6 +715,9 @@ fn research_manifest_packet_id_is_stable_for_same_harness_pressure() {
     let historical_refs = vec![ResearchArtifactRef {
         uri: "s3://research-bucket/replay-run-index/schema=replay_run_index_v1/dt=2026-05-10/hour=11/research_run_report_id=report_001/part-000001.jsonl".to_owned(),
     }];
+    let refreshed_historical_refs = vec![ResearchArtifactRef {
+        uri: "s3://research-bucket/replay-run-index/schema=replay_run_index_v1/dt=2026-05-10/hour=12/research_run_report_id=report_002/part-000001.jsonl".to_owned(),
+    }];
 
     let first = build_research_input_manifest(
         &args,
@@ -733,11 +736,15 @@ fn research_manifest_packet_id_is_stable_for_same_harness_pressure() {
         Some("s3://research-bucket/hypothesis-harness/hypothesis-harness-result/schema=hypothesis_harness_result_v1/second.jsonl"),
         &[result],
         &[p2_bundle()],
-        &historical_refs,
+        &refreshed_historical_refs,
     )
     .expect("second manifest is created");
 
     assert_eq!(first.research_packet_id, second.research_packet_id);
+    assert_ne!(
+        first.historical_replay_run_index_refs,
+        second.historical_replay_run_index_refs
+    );
 }
 
 #[test]
