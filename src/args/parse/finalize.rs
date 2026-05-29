@@ -36,17 +36,23 @@ pub(super) fn finalize_args(mut args: Args, pending: PendingS3Args) -> AppResult
     if !pending.research_manifest.bucket.trim().is_empty() {
         args.research_manifest_s3 = Some(pending.research_manifest);
     }
-    if args.promotion_gate_enabled {
-        if args.candidate_bundle_s3.is_none() {
-            return Err(AppError::config(
-                "--candidate-bundle-s3-bucket/--candidate-bundle-s3-prefix is required when --promotion-gate-enabled is set",
-            ));
-        }
-        if args.research_manifest_output_dir.is_none() && args.research_manifest_s3.is_none() {
-            return Err(AppError::config(
-                "--research-manifest-output-dir or --research-manifest-s3-bucket/--research-manifest-s3-prefix is required when --promotion-gate-enabled is set",
-            ));
-        }
-    }
+    validate_promotion_gate(&args)?;
     Ok(args)
+}
+
+fn validate_promotion_gate(args: &Args) -> AppResult<()> {
+    if !args.promotion_gate_enabled {
+        return Ok(());
+    }
+    if args.candidate_bundle_s3.is_none() {
+        return Err(AppError::config(
+            "--candidate-bundle-s3-bucket/--candidate-bundle-s3-prefix is required when --promotion-gate-enabled is set",
+        ));
+    }
+    if args.research_manifest_output_dir.is_none() && args.research_manifest_s3.is_none() {
+        return Err(AppError::config(
+            "--research-manifest-output-dir or --research-manifest-s3-bucket/--research-manifest-s3-prefix is required when --promotion-gate-enabled is set",
+        ));
+    }
+    Ok(())
 }
