@@ -3,13 +3,14 @@ use crate::model::{
     HARNESS_REPORT_SCHEMA_VERSION, HarnessResult, HarnessRunReport, PRODUCER_APP, VerdictCount,
 };
 use crate::output::harness_result_key;
+use intel_candidate_app::error::AppResult;
 
 pub(crate) fn build_report(
     created_at_ms: i64,
     input_hypothesis_s3_keys_read: usize,
     input_market_delta_s3_keys_read: usize,
     results: &[HarnessResult],
-) -> HarnessRunReport {
+) -> AppResult<HarnessRunReport> {
     let report_id = stable_id(
         "harness_report",
         &[&created_at_ms.to_string(), &results.len().to_string()],
@@ -39,8 +40,8 @@ pub(crate) fn build_report(
             .collect(),
         checksum: String::new(),
     };
-    report.checksum = checksum_json(&report);
-    report
+    report.checksum = checksum_json(&report)?;
+    Ok(report)
 }
 
 fn count_verdict(results: &[HarnessResult], verdict: &str) -> usize {

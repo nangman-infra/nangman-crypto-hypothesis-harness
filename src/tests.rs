@@ -1,12 +1,14 @@
 use crate::args::{Args, parse_args};
-use crate::io::{ListedPayloadObject, select_latest_payload_keys};
+use crate::io::s3::{ListedPayloadObject, select_latest_payload_keys};
 use crate::model::{
-    MarketArtifactInputs, RESEARCH_INPUT_MANIFEST_SCHEMA_VERSION, ResearchArtifactRef,
-    ResearchInputManifest, ResearchRuntimeBudgetPolicy,
+    HarnessResult, MarketArtifactInputs, RESEARCH_INPUT_MANIFEST_SCHEMA_VERSION,
+    ResearchArtifactRef, ResearchInputManifest, ResearchRuntimeBudgetPolicy,
 };
 use crate::output::write_research_manifest_to_dir;
 use crate::promotion_gate::build_research_input_manifest;
-use crate::run::{build_harness_result, handle_research_manifest_outputs};
+use crate::run::{
+    build_harness_result as try_build_harness_result, handle_research_manifest_outputs,
+};
 use intel_candidate_app::model::{
     CandidateClass, IntelCandidateEvidenceBundle, IntelCandidateHypothesisState,
     MarketContextStatus, MarketFeatureDelta, ScoreBreakdown, SelectedMarketArtifactTrace,
@@ -98,6 +100,16 @@ fn build_promotion_args() -> Args {
         .map(str::to_owned),
     )
     .unwrap()
+}
+
+fn build_harness_result(
+    state: &IntelCandidateHypothesisState,
+    market_artifacts: &MarketArtifactInputs,
+    created_at_ms: i64,
+    duration_ms: i64,
+    args: &Args,
+) -> HarnessResult {
+    try_build_harness_result(state, market_artifacts, created_at_ms, duration_ms, args).unwrap()
 }
 
 #[test]

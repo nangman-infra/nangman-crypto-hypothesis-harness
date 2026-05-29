@@ -22,7 +22,10 @@ use std::env;
 async fn main() {
     match parse_args(env::args().skip(1)) {
         Ok(args) => match async_run(args).await {
-            Ok(summary) => println!("{}", serde_json::to_string_pretty(&summary).unwrap()),
+            Ok(summary) => match serde_json::to_string_pretty(&summary) {
+                Ok(output) => println!("{output}"),
+                Err(error) => exit_error(error.into()),
+            },
             Err(error) => exit_error(error),
         },
         Err(error) => exit_error(error),
